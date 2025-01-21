@@ -1,0 +1,23 @@
+{
+  "name": "anti-ob",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@babel/core": "^7.26.0",
+    "@babel/generator": "^7.26.5",
+    "@babel/parser": "^7.26.5",
+    "@babel/traverse": "^7.26.5",
+    "@babel/types": "^7.26.5",
+    "express": "^4.21.2",
+    "javascript-obfuscator": "^4.1.1",
+    "lodash": "^4.17.21",
+    "winston": "^3.17.0"
+  }
+}

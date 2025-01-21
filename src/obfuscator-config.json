@@ -1,0 +1,14 @@
+{
+  "compact": false,
+  "renameGlobals": true,
+  "controlFlowFlattening": true,
+  "identifierNamesGenerator": "hexadecimal",
+  "stringArray": true,
+  "unicodeEscapeSequence": true,
+  "deadCodeInjection": true,
+  "rotateStringArray": true,
+  "disableConsoleOutput": true,
+  "debugProtection": true,
+  "selfDefending": true,
+  "domainLock": ["localhost"]
+}
