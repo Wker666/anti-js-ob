@@ -73,3 +73,10 @@ try {
 } catch (e) {
   console.log("XXTEA encryption needs an external library or implementation.");
 }
+
+function sum(...numbers) {
+  return numbers.reduce((total, num) => total + num, 0);
+}
+
+console.log(sum(1, 2, 3)); // 6
+console.log(sum(4, 5, 6, 7)); // 22

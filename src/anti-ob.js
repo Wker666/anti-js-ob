@@ -371,25 +371,50 @@ class anti_ob {
                 if (PropertyBody.value.type === "FunctionExpression") {
                   // 下面是函数类型的
                   let funcBody = PropertyBody.value;
-                  let param_idx = 0;
                   let arg_map = {};
+                  let Restarg_map = {};
                   // 遍历过程中是否存在没有处理的，没有处理的就直接返回
-                  let PropertyBodyError = false;
-                  funcBody.params.forEach((param) => {
+                  for(let param_idx = 0; param_idx < funcBody.params.length; param_idx++){
+                    let param = funcBody.params[param_idx];
+                    let param_value = subPath.node.arguments[param_idx];
                     if(param.type === "Identifier") {
-                      arg_map[param.name] = subPath.node.arguments[param_idx++];
+                      arg_map[param.name] = param_value;
                     }else if(param.type === "RestElement"){
                       // 可变参数
-                      arg_map[param.argument.name] = subPath.node.arguments[param_idx++].argument;
-                    }else{
-                      PropertyBodyError = true;
-                      logger.error(`error forEach PropertyBody params. ${param.type}`);
-                    }
-                  });
-                  if(PropertyBodyError) return;
+                      /**
+                       * 这里需要注意的是Restarg_map需要添加，下面在遍历SpreadElement的时候需要进行替换
+                       * arg_map也需要添加，遍历Identifier的时候需要替换
+                       *
+                       * 这两种情况分别是
+                       *  function (_0x321dc3, _0x4ac4b4, ..._0x47d739) {
+                       *       return _0x321dc3(_0x4ac4b4, ..._0x47d739);
+                       *     }
+                       *  function sum(...numbers) {
+                       *   return numbers.reduce((total, num) => total + num, 0);
+                       * }
+                       *
+                       * RestElement的调用分为两种情况
+                       *
+                       * 这里我们在之后替换的时候需要先遍历SpreadElement，替换完毕之后再遍历Identifier
+                       * 这样就可以处理SpreadElement中存在Identifier的情况
+                       */
+                      Restarg_map[param.name] = param_value;
 
+                      arg_map[param.argument.name] = param_value.argument;
+                      // 这里需要判断真实传递的参数是否是SpreadElement
+                      // if(param_value.type === "SpreadElement"){
+                      //   arg_map[param.argument.name] = param_value.argument;
+                      // }else{
+                      //   // 否则还是直接使用value
+                      //   arg_map[param.argument.name] = param_value;
+                      // }
+                    }else{
+                      logger.error(`error forEach PropertyBody params. ${param.type} . skip it.`);
+                      return;
+                    }
+                  }
                   // 获取函数体中的返回值部分，只考虑单个return的情况
-                  // 第一层body是BlockStm 下面才是RetuurnStatement
+                  // 第一层body是BlockStm 下面才是ReturnStatement
                   if(funcBody.body.body.length === 1 && funcBody.body.body[0].type === "ReturnStatement"){
                     // 此处不能这样拷贝，太慢了
                     // const PropertyPathCopy = lodash.cloneDeep(PropertyPath);
@@ -397,22 +422,59 @@ class anti_ob {
                     let PropertyPathCopy = parse.parse(ProCode);
                     // 此处比较特殊，我们不可以直接在traverse中进行替换，因为可能出现参数名成和替换的参数值名重复，我们需要获取到对应的一个替换map，退出之后进行替换
                     // 其他的不需要是因为都是简单替换
+
+
+                    replace_is_right = true;
                     let replaceMap = {};
+                    for (const key of Object.keys(Restarg_map)) replaceMap[key] = [];
+                    traverse(PropertyPathCopy,{
+                      SpreadElement(subInnerPath){
+                        if(Restarg_map[subInnerPath.node.name] !== undefined){
+                          replaceMap[subInnerPath.node.name].push(subInnerPath);
+                        }
+                      },
+
+                    });
+                    for (const key of Object.keys(Restarg_map)){
+                      replaceMap[key].forEach((subInnerPathCopy, _) => {
+                        try{
+                          subInnerPathCopy.replaceWith(Restarg_map[key]);
+                        }catch (e){
+                          /**
+                           * 此处的很大一部分原因是这块内容本身就是错误的，后面会被优化掉
+                           */
+                          logger.error("some err happend in array ob find map key . skip it. " + e);
+                          replace_is_right = false;
+                        }
+                      });
+                    }
+
+                    replaceMap = {};
                     for (const key of Object.keys(arg_map)) replaceMap[key] = [];
                     traverse(PropertyPathCopy,{
                       Identifier(subInnerPath){
                         if(arg_map[subInnerPath.node.name] !== undefined){
                           replaceMap[subInnerPath.node.name].push(subInnerPath);
                         }
-                      }
+                      },
+
                     });
                     for (const key of Object.keys(arg_map)){
                       replaceMap[key].forEach((subInnerPathCopy, _) => {
-                        subInnerPathCopy.replaceWith(arg_map[key]);
+                        try{
+                          subInnerPathCopy.replaceWith(arg_map[key]);
+                        }catch (e){
+                          /**
+                           * 此处的很大一部分原因是这块内容本身就是错误的，后面会被优化掉
+                           */
+                          logger.error("some err happend in array ob find map key . skip it. " + e);
+                          replace_is_right = false;
+                        }
                       });
                     }
-                    replace_is_right = true;
-                    subPath.replaceWith(PropertyPathCopy.program.body[0].declarations[0].init.body.body[0].argument);
+                    if(replace_is_right){
+                      subPath.replaceWith(PropertyPathCopy.program.body[0].declarations[0].init.body.body[0].argument);
+                    }
                   }
                 }
               }
