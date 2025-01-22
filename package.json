@@ -19,5 +19,9 @@
     "javascript-obfuscator": "^4.1.1",
     "lodash": "^4.17.21",
     "winston": "^3.17.0"
+  },
+  "devDependencies": {
+    "@babel/plugin-syntax-jsx": "^7.25.9",
+    "terser": "^5.37.0"
   }
 }

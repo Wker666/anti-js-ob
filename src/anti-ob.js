@@ -5,7 +5,9 @@ const generator = require('@babel/generator').default;
 const types = require('@babel/types');
 const lodash = require('lodash');
 const { executeEval, callEvalFunction } = require('./evalFile');
-const { forever_test, delete_func_bystr, path_have_target_str_arr, optimizeAST } = require('./utils');
+const { forever_test, delete_func_bystr, path_have_target_str_arr, optimizeAST, renameLocalVariablesAndArg,
+  optimizeJavaScriptCode
+} = require('./utils');
 const Logger = require('./Logger');
 
 const logger = new Logger();
@@ -606,6 +608,15 @@ class anti_ob {
             inner_path.replaceInline(resultBody);
           }
         });
+        // 删除第一个spilt的语句，使用traverse
+        let needMove = path_node.body[0].declarations[0];
+        path.traverse({
+          VariableDeclarator(subPath){
+            if(subPath.node === needMove){
+              subPath.remove();
+            }
+          }
+        });
       }
     });
   }
@@ -712,6 +723,10 @@ class anti_ob {
     });
   }
 
+  anti_var_param_ob(){
+    renameLocalVariablesAndArg(this.ast);
+  }
+
   /**
    * 一键处理
    */
@@ -753,6 +768,11 @@ class anti_ob {
       this.anti_protect();
       logger.log("complete anti_protect.");
     }
+    if(anti_param.optimize_var_param){
+      logger.log("start optimize_var_param.");
+      this.output_file();
+      logger.log("complete optimize_var_param.");
+    }
     this.output_file();
   }
 
@@ -760,18 +780,32 @@ class anti_ob {
    * 将ast输出到文件
    */
   output_file(){
-    fs.writeFile(this.output_filepath, generator(this.ast,{
+    let oCode = generator(this.ast,{
       // 禁用 Unicode 转义
       jsescOption: {
         minimal: true
       }
-    }).code, (err) => {
-      if (err) {
-        logger.error('写入文件时发生错误:' + err);
-      } else {
-        logger.log(`文件已成功写入到 ${this.output_filepath}`);
-      }
-    });
+    }).code;
+    optimizeJavaScriptCode(oCode)
+        .then(optimizedCode => {
+          fs.writeFile(this.output_filepath, optimizedCode, (err) => {
+          if (err) {
+            logger.error('写入文件时发生错误:' + err);
+          } else {
+            logger.log(`文件已成功写入到 ${this.output_filepath}`);
+          }
+        });
+        })
+        .catch(err => {
+          console.error("Failed to optimize code: "+err+" write o code.");
+          fs.writeFile(this.output_filepath, oCode, (err) => {
+            if (err) {
+              logger.error('写入文件时发生错误:' + err);
+            } else {
+              logger.log(`文件已成功写入到 ${this.output_filepath}`);
+            }
+          });
+        });
   }
 
 }

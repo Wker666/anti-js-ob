@@ -2,6 +2,7 @@ const babel = require('@babel/core');
 const t = require('@babel/types');
 const { default: traverse } = require('@babel/traverse');
 const parser = require('@babel/parser');
+const { minify } = require('terser');
 
 /**
  * 执行一条ast语句用来得到结果
@@ -284,9 +285,62 @@ function optimizeAST(ast) {
 //   });
 // }
 
+function renameLocalVariablesAndArg(ast) {
+  traverse(ast, {
+    Function(path) {
+      // Rename all parameters
+      path.get('params').forEach(paramPath => {
+        const paramName = paramPath.node.name;
+        const newParamName = "arg"+path.scope.generateUid("_");
+        path.scope.rename(paramName, newParamName);
+      });
+      // Rename all local variables
+      path.traverse({
+        VariableDeclaration(variablePath) {
+          variablePath.get('declarations').forEach(declaration => {
+            const localVarName = declaration.node.id.name;
+            const newLocalVarName = "var"+path.scope.generateUid("_");
+            path.scope.rename(localVarName, newLocalVarName);
+          });
+        }
+      });
+    }
+  });
+}
+
+
+/**
+ * Optimize JavaScript code by removing unused variables, functions, and empty function calls.
+ * @param {string} code - The JavaScript source code to optimize.
+ * @returns {Promise<string>} - A promise that resolves to the optimized JavaScript code.
+ */
+async function optimizeJavaScriptCode(code) {
+  try {
+    const result = await minify(code, {
+      compress: {
+        dead_code: true, // Remove unreachable code
+        unused: true,    // Drop unreferenced functions and variables
+        toplevel: true,  // Optimize top-level scope
+      },
+      output: {
+        beautify: true,   // Format code in a readable way
+        comments: false,  // Remove comments
+      },
+      mangle: false, // Prevent variable name mangling
+    });
+
+    return result.code;
+  } catch (error) {
+    console.error('Error during code optimization:', error);
+    throw error;
+  }
+}
+
 module.exports = {
   path_have_target_str_arr,
   forever_test,
   delete_func_bystr,
-  optimizeAST
+  optimizeAST,
+  renameLocalVariablesAndArg,
+  optimizeJavaScriptCode
 };
